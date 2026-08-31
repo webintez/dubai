@@ -7,7 +7,10 @@
     <!-- Top Header -->
     <header class="admin-header">
         <div class="logo">
-            <span class="gold-text">DUBAI</span> VIP <span class="admin-badge">Admin</span>
+            <a href="{{ route('home') }}">
+                <img src="{{ asset('logo.png') }}" alt="Dubai VIP Logo" class="logo-img" style="height: 35px; vertical-align: middle;">
+            </a>
+            <span class="admin-badge">Admin</span>
         </div>
         <div class="header-actions">
             <a href="{{ route('home') }}" class="btn btn-outline-gold" style="padding: 0.5rem 1.2rem; font-size: 0.85rem;" target="_blank">

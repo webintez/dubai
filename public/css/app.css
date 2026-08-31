@@ -156,6 +156,14 @@ a {
     font-size: 1.8rem;
     font-weight: 800;
     letter-spacing: 2px;
+    display: flex;
+    align-items: center;
+}
+
+.logo-img {
+    height: 45px;
+    object-fit: contain;
+    vertical-align: middle;
 }
 
 .support-badge {

@@ -10,9 +10,9 @@
         <div class="glass-modal active" style="position: relative; max-width: 420px; width: 100%;">
             <!-- Logo header -->
             <div class="text-center" style="margin-bottom: 2rem;">
-                <h2 style="font-size: 2.2rem; font-weight: 800; letter-spacing: 2px;">
-                    <span class="gold-text">DUBAI</span> VIP
-                </h2>
+                <a href="{{ route('home') }}">
+                    <img src="{{ asset('logo.png') }}" alt="Dubai VIP Logo" class="logo-img" style="height: 55px; margin-bottom: 0.5rem;">
+                </a>
                 <p class="text-muted" style="font-size: 0.85rem; letter-spacing: 2px; text-transform: uppercase; margin-top: 0.25rem;">Admin Control Portal</p>
             </div>
 

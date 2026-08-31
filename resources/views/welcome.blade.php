@@ -11,7 +11,9 @@
     <div class="hero-container">
         <header class="header">
             <div class="logo">
-                <span class="gold-text">DUBAI</span> VIP
+                <a href="{{ route('home') }}">
+                    <img src="{{ asset('logo.png') }}" alt="Dubai VIP Logo" class="logo-img">
+                </a>
             </div>
             <div class="support-badge">
                 <a href="tel:{{ $supportPhone }}" class="support-link">
