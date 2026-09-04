@@ -41,7 +41,7 @@
                         <i class="fa-solid fa-arrow-right-to-bracket"></i> VIP Login
                     </a>
                     <a href="{{ route('register') }}" class="btn btn-gold btn-sm">
-                        <i class="fa-solid fa-gift"></i> Free Register
+                        <i class="fa-solid fa-user-plus"></i> Register
                     </a>
                 @endauth
 
@@ -82,11 +82,6 @@
                     <a href="#today-section" class="btn btn-outline-gold">
                         <span class="btn-content">
                             <i class="fa-solid fa-calendar-day"></i> Today ({{ $todayCount }})
-                        </span>
-                    </a>
-                    <a href="#tomorrow-section" class="btn btn-outline-gold">
-                        <span class="btn-content">
-                            <i class="fa-solid fa-calendar-plus"></i> Tomorrow ({{ $tomorrowCount }})
                         </span>
                     </a>
                     <a href="#upcoming-section" class="btn btn-outline-gold">
@@ -269,81 +264,12 @@
                 <div class="empty-meetings-box">
                     <i class="fa-regular fa-calendar-xmark gold-icon empty-icon"></i>
                     <h3>No Sessions Scheduled For Today</h3>
-                    <p>Check tomorrow's schedule below or explore upcoming summits.</p>
+                    <p>Explore our upcoming schedule and executive masterclasses below.</p>
                 </div>
             @endif
         </div>
     </section>
 
-    <!-- SECTION 3: TOMORROW'S SESSIONS -->
-    <section class="meetings-section tomorrow-section-bg" id="tomorrow-section">
-        <div class="section-container">
-            <div class="section-header-box">
-                <div class="section-badge-tomorrow">
-                    <i class="fa-solid fa-calendar-plus"></i> TOMORROW'S VIP SCHEDULE &bull; {{ \Carbon\Carbon::tomorrow()->format('l, M d, Y') }}
-                </div>
-                <h2 class="section-title">Tomorrow's Sessions ({{ $tomorrowCount }})</h2>
-                <p class="section-subtitle">
-                    Advance registration for tomorrow's closed-door investor summits and executive masterclasses.
-                </p>
-            </div>
-
-            @if($tomorrowMeetings->count() > 0)
-                <div class="meetings-grid">
-                    @foreach($tomorrowMeetings as $meeting)
-                        <div class="meeting-card upcoming-card animate-slide-up">
-                            <!-- Card Image -->
-                            <div class="meeting-card-media">
-                                @php
-                                    $thumb = $meeting->thumbnail;
-                                    $thumbUrl = $thumb ? (\Illuminate\Support\Str::startsWith($thumb, 'http') ? $thumb : asset($thumb)) : 'https://images.unsplash.com/photo-1546412414-e1885259563a?auto=format&fit=crop&w=600&q=80';
-                                @endphp
-                                <img src="{{ $thumbUrl }}" alt="{{ $meeting->title }}" class="meeting-card-img">
-                                
-                                <div class="media-overlay-badges">
-                                    <span class="schedule-tag">
-                                        <i class="fa-regular fa-clock"></i> Tomorrow {{ $meeting->start_time ? $meeting->start_time->format('h:i A') : '' }}
-                                    </span>
-                                    <span class="price-pill-gold">{{ $meeting->formatted_price }}</span>
-                                </div>
-                            </div>
-
-                            <!-- Card Content -->
-                            <div class="meeting-card-body">
-                                <div class="meeting-meta-top">
-                                    <span class="meta-tag"><i class="fa-regular fa-clock gold-icon"></i> {{ $meeting->duration }}</span>
-                                    <span class="meta-tag gold-text"><i class="fa-solid fa-calendar-day"></i> {{ $meeting->start_time ? $meeting->start_time->format('M d, Y') : '' }}</span>
-                                </div>
-
-                                <h3 class="meeting-title">{{ $meeting->title }}</h3>
-                                <p class="meeting-desc">{{ \Illuminate\Support\Str::limit($meeting->description, 120) }}</p>
-
-                                <div class="meeting-card-footer">
-                                    <div class="pricing-display">
-                                        <span class="pricing-label">Registration Price</span>
-                                        <strong class="pricing-amount">{{ $meeting->formatted_price }}</strong>
-                                    </div>
-
-                                    <button type="button" class="btn btn-outline-gold book-trigger-btn" 
-                                            onclick="openBookingModal({{ $meeting->id }})">
-                                        <span class="btn-content">
-                                            <i class="fa-solid fa-ticket"></i> Reserve Pass
-                                        </span>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    @endforeach
-                </div>
-            @else
-                <div class="empty-meetings-box">
-                    <i class="fa-regular fa-calendar-xmark gold-icon empty-icon"></i>
-                    <h3>No Sessions Scheduled For Tomorrow</h3>
-                    <p>Browse our complete upcoming schedule below.</p>
-                </div>
-            @endif
-        </div>
-    </section>
 
     <!-- SECTION 4: ALL UPCOMING MEETINGS -->
     <section class="meetings-section upcoming-bg" id="upcoming-section">
@@ -362,7 +288,7 @@
                 <div class="meetings-grid">
                     @foreach($upcomingMeetings as $meeting)
                         @php
-                            $cardDay = ($meeting->start_time && $meeting->start_time->isToday()) ? 'today' : (($meeting->start_time && $meeting->start_time->isTomorrow()) ? 'tomorrow' : 'other');
+                            $cardDay = ($meeting->start_time && $meeting->start_time->isToday()) ? 'today' : 'upcoming';
                         @endphp
                         <div class="meeting-card upcoming-card animate-slide-up" data-meeting-day="{{ $cardDay }}">
                             <!-- Card Image -->
@@ -432,7 +358,7 @@
                 <p>&copy; {{ date('Y') }} Dubai VIP Concierge & Meetings Gateway. All Rights Reserved.</p>
                 <div class="footer-links">
                     <a href="{{ route('login') }}">Member Sign In</a> &bull; 
-                    <a href="{{ route('register') }}">Free Registration</a> &bull; 
+                    <a href="{{ route('register') }}">Register</a> &bull; 
                     <a href="{{ route('admin.login') }}">Admin Login</a>
                 </div>
             </div>
@@ -876,10 +802,6 @@
     border-top: 1px solid rgba(212, 175, 55, 0.2);
     border-bottom: 1px solid rgba(255, 255, 255, 0.04);
 }
-.tomorrow-section-bg {
-    background: #070b16;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-}
 .section-badge-today {
     display: inline-flex;
     align-items: center;
@@ -887,20 +809,6 @@
     background: rgba(212, 175, 55, 0.12);
     border: 1px solid rgba(212, 175, 55, 0.4);
     color: var(--gold-primary);
-    font-size: 0.75rem;
-    font-weight: 700;
-    padding: 0.35rem 0.95rem;
-    border-radius: 50px;
-    margin-bottom: 0.75rem;
-    letter-spacing: 0.5px;
-}
-.section-badge-tomorrow {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    background: rgba(77, 171, 247, 0.12);
-    border: 1px solid rgba(77, 171, 247, 0.35);
-    color: #74c0fc;
     font-size: 0.75rem;
     font-weight: 700;
     padding: 0.35rem 0.95rem;
