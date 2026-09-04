@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Setting;
 use App\Models\Submission;
-use Illuminate\Support\Facades\Hash;
+use App\Models\Meeting;
+use App\Models\Booking;
+use Illuminate\Support\Str;
 
 class AdminController extends Controller
 {
@@ -27,7 +29,6 @@ class AdminController extends Controller
         $envUsername = env('ADMIN_USERNAME', 'admin');
         $envPassword = env('ADMIN_PASSWORD', 'admin123');
 
-        // Allow both plain comparison (from env direct value) and fallback
         if ($request->username === $envUsername && $request->password === $envPassword) {
             session(['admin_logged_in' => true]);
             return redirect()->route('admin.dashboard')->with('success', 'Logged in successfully!');
@@ -44,21 +45,24 @@ class AdminController extends Controller
 
     public function index(Request $request)
     {
-        // Get filter options if any
-        $statusFilter = $request->query('status');
-        $dayFilter = $request->query('day');
+        // Meetings ordered by start_time
+        $meetings = Meeting::withCount('bookings')->orderBy('start_time', 'desc')->get();
 
-        $query = Submission::query();
+        // Bookings Query with filters
+        $bookingStatus = $request->query('booking_status');
+        $meetingFilter = $request->query('meeting_id');
 
-        if ($statusFilter) {
-            $query->where('status', $statusFilter);
+        $bookingsQuery = Booking::with(['user', 'meeting']);
+
+        if ($bookingStatus) {
+            $bookingsQuery->where('status', $bookingStatus);
         }
 
-        if ($dayFilter) {
-            $query->where('day', $dayFilter);
+        if ($meetingFilter) {
+            $bookingsQuery->where('meeting_id', $meetingFilter);
         }
 
-        $submissions = $query->orderBy('created_at', 'desc')->paginate(20);
+        $bookings = $bookingsQuery->orderBy('created_at', 'desc')->paginate(20, ['*'], 'bookings_page');
 
         // Fetch settings
         $settings = [
@@ -68,7 +72,18 @@ class AdminController extends Controller
             'payment_qr' => Setting::get('payment_qr', ''),
         ];
 
-        return view('admin.dashboard', compact('submissions', 'settings'));
+        // Stats dynamically calculated from start_time and duration
+        $stats = [
+            'total_meetings' => $meetings->count(),
+            'ongoing_meetings' => $meetings->filter(fn($m) => $m->isLive())->count(),
+            'upcoming_meetings' => $meetings->filter(fn($m) => $m->isUpcoming())->count(),
+            'past_meetings' => $meetings->filter(fn($m) => $m->isPast())->count(),
+            'total_bookings' => Booking::count(),
+            'pending_bookings' => Booking::where('status', 'pending')->count(),
+            'approved_bookings' => Booking::where('status', 'approved')->count(),
+        ];
+
+        return view('admin.dashboard', compact('meetings', 'bookings', 'settings', 'stats'));
     }
 
     public function updateSettings(Request $request)
@@ -77,7 +92,7 @@ class AdminController extends Controller
             'today_link' => 'nullable|url|max:255',
             'tomorrow_link' => 'nullable|url|max:255',
             'support_phone' => 'required|string|max:50',
-            'payment_qr' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048',
+            'payment_qr' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:3072',
         ]);
 
         Setting::set('today_link', $request->today_link);
@@ -97,39 +112,221 @@ class AdminController extends Controller
             Setting::set('payment_qr', 'uploads/settings/' . $filename);
         }
 
-        return redirect()->back()->with('success', 'Settings updated successfully!');
+        return redirect()->back()->with('success', 'Portal configurations updated successfully!');
     }
 
-    public function updateStatus(Request $request, $id)
+    /**
+     * Store new Meeting
+     */
+    public function storeMeeting(Request $request)
     {
         $request->validate([
-            'status' => 'required|in:pending,approved,rejected',
+            'title' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'link' => 'required|url|max:500',
+            'duration' => 'required|string|max:50',
+            'password' => 'required|string|max:100',
+            'price' => 'required|string|max:50',
+            'thumbnail' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:4096',
+            'thumbnail_url' => 'nullable|url|max:500',
+            'start_time' => 'required|date',
         ]);
 
-        $submission = Submission::findOrFail($id);
-        $submission->status = $request->status;
-        $submission->save();
+        $thumbnailPath = null;
+        if ($request->hasFile('thumbnail')) {
+            $file = $request->file('thumbnail');
+            $filename = 'meeting_' . time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
+            $destinationPath = public_path('uploads/meetings');
+            if (!file_exists($destinationPath)) {
+                mkdir($destinationPath, 0755, true);
+            }
+            $file->move($destinationPath, $filename);
+            $thumbnailPath = 'uploads/meetings/' . $filename;
+        } elseif ($request->filled('thumbnail_url')) {
+            $thumbnailPath = $request->thumbnail_url;
+        } else {
+            // Default elegant Dubai image
+            $thumbnailPath = 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?auto=format&fit=crop&w=800&q=80';
+        }
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Status updated to ' . ucfirst($request->status)
+        Meeting::create([
+            'title' => $request->title,
+            'description' => $request->description,
+            'link' => $request->link,
+            'duration' => $request->duration,
+            'password' => $request->password,
+            'price' => $request->price,
+            'thumbnail' => $thumbnailPath,
+            'start_time' => $request->start_time,
         ]);
+
+        return redirect()->back()->with('success', 'Meeting session created successfully!');
     }
 
-    public function deleteSubmission($id)
+    /**
+     * Update existing Meeting
+     */
+    public function updateMeeting(Request $request, $id)
     {
-        $submission = Submission::findOrFail($id);
-        
-        // Remove screenshot if it exists
-        if ($submission->screenshot_path) {
-            $path = public_path($submission->screenshot_path);
-            if (file_exists($path)) {
-                @unlink($path);
-            }
-        }
-        
-        $submission->delete();
+        $meeting = Meeting::findOrFail($id);
 
-        return redirect()->back()->with('success', 'Submission deleted successfully.');
+        $request->validate([
+            'title' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'link' => 'required|url|max:500',
+            'duration' => 'required|string|max:50',
+            'password' => 'required|string|max:100',
+            'price' => 'required|string|max:50',
+            'thumbnail' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:4096',
+            'thumbnail_url' => 'nullable|url|max:500',
+            'start_time' => 'required|date',
+        ]);
+
+        $meeting->title = $request->title;
+        $meeting->description = $request->description;
+        $meeting->link = $request->link;
+        $meeting->duration = $request->duration;
+        $meeting->password = $request->password;
+        $meeting->price = $request->price;
+        $meeting->start_time = $request->start_time;
+
+        if ($request->hasFile('thumbnail')) {
+            $file = $request->file('thumbnail');
+            $filename = 'meeting_' . time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
+            $destinationPath = public_path('uploads/meetings');
+            if (!file_exists($destinationPath)) {
+                mkdir($destinationPath, 0755, true);
+            }
+            $file->move($destinationPath, $filename);
+            
+            // Delete old file if local
+            if ($meeting->thumbnail && !Str::startsWith($meeting->thumbnail, 'http')) {
+                @unlink(public_path($meeting->thumbnail));
+            }
+            $meeting->thumbnail = 'uploads/meetings/' . $filename;
+        } elseif ($request->filled('thumbnail_url')) {
+            $meeting->thumbnail = $request->thumbnail_url;
+        }
+
+        $meeting->save();
+
+        return redirect()->back()->with('success', 'Meeting updated successfully!');
+    }
+
+    /**
+     * Toggle meeting status (ongoing <-> upcoming)
+     */
+    public function toggleMeetingStatus(Request $request, $id)
+    {
+        $meeting = Meeting::findOrFail($id);
+        $newStatus = $request->input('status');
+        
+        if (!in_array($newStatus, ['ongoing', 'upcoming', 'completed'])) {
+            $newStatus = ($meeting->status === 'ongoing') ? 'upcoming' : 'ongoing';
+        }
+
+        $meeting->status = $newStatus;
+        $meeting->save();
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'status' => $newStatus,
+                'message' => 'Meeting status updated to ' . ucfirst($newStatus)
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'Meeting status changed to ' . ucfirst($newStatus));
+    }
+
+    /**
+     * Delete Meeting
+     */
+    public function deleteMeeting($id)
+    {
+        $meeting = Meeting::findOrFail($id);
+
+        if ($meeting->thumbnail && !Str::startsWith($meeting->thumbnail, 'http')) {
+            @unlink(public_path($meeting->thumbnail));
+        }
+
+        $meeting->delete();
+
+        return redirect()->back()->with('success', 'Meeting deleted successfully.');
+    }
+
+    /**
+     * Approve Booking & Assign Code
+     */
+    public function approveBooking(Request $request, $id)
+    {
+        $request->validate([
+            'assigned_code' => 'nullable|string|max:50',
+            'admin_notes' => 'nullable|string|max:500',
+        ]);
+
+        $booking = Booking::with('meeting', 'user')->findOrFail($id);
+
+        // Generate code if empty: e.g. DXB-VIP-8492
+        $code = $request->assigned_code;
+        if (empty(trim($code))) {
+            $code = 'DXB-VIP-' . strtoupper(Str::random(4)) . '-' . rand(100, 999);
+        }
+
+        $booking->status = 'approved';
+        $booking->assigned_code = $code;
+        if ($request->filled('admin_notes')) {
+            $booking->admin_notes = $request->admin_notes;
+        }
+        $booking->save();
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Booking approved! Code assigned: ' . $code,
+                'assigned_code' => $code,
+                'status' => 'approved'
+            ]);
+        }
+
+        return redirect()->back()->with('success', "Booking #{$id} approved! Access code '{$code}' assigned.");
+    }
+
+    /**
+     * Reject Booking
+     */
+    public function rejectBooking(Request $request, $id)
+    {
+        $booking = Booking::findOrFail($id);
+        $booking->status = 'rejected';
+        if ($request->filled('admin_notes')) {
+            $booking->admin_notes = $request->admin_notes;
+        }
+        $booking->save();
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Booking # ' . $id . ' has been rejected.'
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'Booking rejected.');
+    }
+
+    /**
+     * Delete Booking
+     */
+    public function deleteBooking($id)
+    {
+        $booking = Booking::findOrFail($id);
+
+        if ($booking->screenshot_path) {
+            @unlink(public_path($booking->screenshot_path));
+        }
+
+        $booking->delete();
+
+        return redirect()->back()->with('success', 'Booking deleted successfully.');
     }
 }

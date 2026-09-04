@@ -11,7 +11,7 @@
             <!-- Logo header -->
             <div class="text-center" style="margin-bottom: 2rem;">
                 <a href="{{ route('home') }}">
-                    <img src="{{ asset('logo.png') }}" alt="Dubai VIP Logo" class="logo-img" style="height: 55px; margin-bottom: 0.5rem;">
+                    <img src="{{ asset('logo.png') }}" alt="Dubai VIP Logo" class="logo-img" style="height: 70px; margin-bottom: 0.5rem;">
                 </a>
                 <p class="text-muted" style="font-size: 0.85rem; letter-spacing: 2px; text-transform: uppercase; margin-top: 0.25rem;">Admin Control Portal</p>
             </div>
